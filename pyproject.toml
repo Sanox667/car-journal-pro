@@ -1,0 +1,20 @@
+[project]
+name = "car-journal-pro"
+version = "1.1.0"
+description = "Бортовой журнал автомобиля с GPS-поиском АЗС"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "flet>=0.25.0",
+]
+
+[tool.flet]
+org = "com.carjournal"
+product = "Бортовой Журнал PRO"
+company = "CarJournal"
+copyright = "Copyright (C) 2026"
+
+[tool.flet.android.permission]
+"android.permission.INTERNET" = true
+"android.permission.ACCESS_FINE_LOCATION" = true
+"android.permission.ACCESS_COARSE_LOCATION" = true
