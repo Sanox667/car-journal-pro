@@ -44,7 +44,6 @@ class _JournalHomePageState extends State<JournalHomePage> {
   int _tabIndex = 0;
   bool _isLoadingGps = false;
 
-  // Ссылка на донат и на обновления (можете заменить на свои)
   final String donateUrl = 'https://boosty.to/ваш_аккаунт';
   final String repoReleasesUrl =
       'https://github.com/Sanox667/car-journal-pro/actions';
@@ -65,7 +64,6 @@ class _JournalHomePageState extends State<JournalHomePage> {
   List<Map<String, dynamic>> _refuelings = [];
   List<Map<String, dynamic>> _expenses = [];
 
-  // Поля состояния вкладки "Заправки"
   String _selectedFuel = 'АИ-95';
   String _selectedMode = 'Смешанный';
   bool _isFullTank = true;
@@ -74,10 +72,8 @@ class _JournalHomePageState extends State<JournalHomePage> {
   double _lat = 0.0;
   double _lon = 0.0;
 
-  // Поля состояния вкладки "Расходы"
   String _expCategory = '🔧 ТО и Запчасти';
 
-  // Контроллеры ввода
   final TextEditingController _quickCtrl = TextEditingController();
   final TextEditingController _odoCtrl = TextEditingController();
   final TextEditingController _litersCtrl = TextEditingController();
@@ -102,7 +98,6 @@ class _JournalHomePageState extends State<JournalHomePage> {
   Future<void> _initData() async {
     final prefs = await SharedPreferences.getInstance();
 
-    // Инициализация цен
     _fuelPrices = {};
     defaultPrices.forEach((brand, fuels) {
       _fuelPrices[brand] = Map<String, double>.from(fuels);
@@ -118,7 +113,6 @@ class _JournalHomePageState extends State<JournalHomePage> {
       } catch (_) {}
     }
 
-    // Инициализация авто
     final savedCars = prefs.getString('cars');
     if (savedCars != null) {
       _cars = List<Map<String, dynamic>>.from(jsonDecode(savedCars));
@@ -134,7 +128,7 @@ class _JournalHomePageState extends State<JournalHomePage> {
       ];
     }
 
-    _activeCarId = prefs.getInt('active_car_id') ?? _cars.first['id'];
+    _activeCarId = prefs.getInt('active_car_id') ?? (_cars.first['id'] as num).toInt();
 
     final savedRef = prefs.getString('refuelings');
     if (savedRef != null) {
@@ -166,34 +160,38 @@ class _JournalHomePageState extends State<JournalHomePage> {
 
     final car = _activeCar;
     final currOdo = _currentOdometer;
-    _srvOdoCtrl.text =
-        ((car['last_service_odo'] as int) > 0 ? car['last_service_odo'] : currOdo)
-            .toString();
+    final lastSrv = (car['last_service_odo'] as num).toInt();
+    _srvOdoCtrl.text = (lastSrv > 0 ? lastSrv : currOdo).toString();
     _srvIntCtrl.text = car['service_interval'].toString();
   }
 
   Map<String, dynamic> get _activeCar {
     return _cars.firstWhere(
-      (c) => c['id'] == _activeCarId,
+      (c) => (c['id'] as num).toInt() == _activeCarId,
       orElse: () => _cars.first,
     );
   }
 
   List<Map<String, dynamic>> get _carRefuelings {
-    final list = _refuelings.where((r) => r['car_id'] == _activeCarId).toList();
-    list.sort((a, b) => (a['odometer'] as int).compareTo(b['odometer'] as int));
+    final list = _refuelings
+        .where((r) => (r['car_id'] as num).toInt() == _activeCarId)
+        .toList();
+    list.sort((a, b) =>
+        (a['odometer'] as num).toInt().compareTo((b['odometer'] as num).toInt()));
     return list;
   }
 
   List<Map<String, dynamic>> get _carExpenses {
-    final list = _expenses.where((e) => e['car_id'] == _activeCarId).toList();
-    list.sort((a, b) => (b['id'] as int).compareTo(a['id'] as int));
+    final list = _expenses
+        .where((e) => (e['car_id'] as num).toInt() == _activeCarId)
+        .toList();
+    list.sort((a, b) => (b['id'] as num).toInt().compareTo((a['id'] as num).toInt()));
     return list;
   }
 
   int get _currentOdometer {
     final refs = _carRefuelings;
-    return refs.isNotEmpty ? (refs.last['odometer'] as int) : 0;
+    return refs.isNotEmpty ? (refs.last['odometer'] as num).toInt() : 0;
   }
 
   double _getFuelPrice(String stationBrand, String fuelType) {
@@ -238,7 +236,6 @@ class _JournalHomePageState extends State<JournalHomePage> {
     );
   }
 
-  // ================= ГЕОЛОКАЦИЯ И ПОИСК АЗС =================
   String _detectBrandName(String raw) {
     final low = raw.toLowerCase();
     final mapping = {
@@ -278,7 +275,6 @@ class _JournalHomePageState extends State<JournalHomePage> {
     double? lat;
     double? lon;
 
-    // 1. Пробуем аппаратный GPS смартфона
     try {
       LocationPermission perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied) {
@@ -293,7 +289,6 @@ class _JournalHomePageState extends State<JournalHomePage> {
       }
     } catch (_) {}
 
-    // 2. Резервный вариант по сети
     if (lat == null || lon == null) {
       try {
         final resp = await http
@@ -305,7 +300,7 @@ class _JournalHomePageState extends State<JournalHomePage> {
           lat = (data['lat'] as num).toDouble();
           lon = (data['lon'] as num).toDouble();
         }
-      } catch (e) {
+      } catch (_) {
         setState(() => _isLoadingGps = false);
         _notify('⚠️ Не удалось получить координаты. Проверьте GPS или интернет.',
             isError: true);
@@ -319,48 +314,59 @@ class _JournalHomePageState extends State<JournalHomePage> {
       return;
     }
 
+    double curLat = lat;
+    double curLon = lon;
     String foundBrand = 'Средняя по региону';
     int? distM;
-    String addrStr = '${lat.toStringAsFixed(4)}, ${lon.toStringAsFixed(4)}';
+    String addrStr = '${curLat.toStringAsFixed(4)}, ${curLon.toStringAsFixed(4)}';
 
-    // Поиск ближайшей АЗС через OpenStreetMap Overpass API
     try {
       final query =
-          '[out:json][timeout:6];node["amenity"="fuel"](around:2500,$lat,$lon);out body;';
+          '[out:json][timeout:6];node["amenity"="fuel"](around:2500,$curLat,$curLon);out body;';
       final url = Uri.parse(
           'https://overpass-api.de/api/interpreter?data=${Uri.encodeComponent(query)}');
-      final resp = await http.get(url, headers: {'User-Agent': 'CarJournalPro/2.0'}).timeout(const Duration(seconds: 6));
+      final resp = await http
+          .get(url, headers: {'User-Agent': 'CarJournalPro/2.0'})
+          .timeout(const Duration(seconds: 6));
       final osm = jsonDecode(resp.body);
       final elements = List<Map<String, dynamic>>.from(osm['elements'] ?? []);
       if (elements.isNotEmpty) {
+        final double baseLat = curLat;
+        final double baseLon = curLon;
         elements.sort((a, b) {
-          final da = _haversineM(lat!, lon!, (a['lat'] as num).toDouble(), (a['lon'] as num).toDouble());
-          final db = _haversineM(lat, lon, (b['lat'] as num).toDouble(), (b['lon'] as num).toDouble());
+          final da = _haversineM(baseLat, baseLon, (a['lat'] as num).toDouble(),
+              (a['lon'] as num).toDouble());
+          final db = _haversineM(baseLat, baseLon, (b['lat'] as num).toDouble(),
+              (b['lon'] as num).toDouble());
           return da.compareTo(db);
         });
         final nearest = elements.first;
         final tags = Map<String, dynamic>.from(nearest['tags'] ?? {});
-        final rawName = (tags['brand'] ?? tags['name'] ?? tags['operator'] ?? 'АЗС').toString();
+        final rawName =
+            (tags['brand'] ?? tags['name'] ?? tags['operator'] ?? 'АЗС').toString();
         foundBrand = _detectBrandName(rawName);
         final nLat = (nearest['lat'] as num).toDouble();
         final nLon = (nearest['lon'] as num).toDouble();
-        distM = _haversineM(lat, lon, nLat, nLon);
-        lat = nLat;
-        lon = nLon;
+        distM = _haversineM(baseLat, baseLon, nLat, nLon);
+        curLat = nLat;
+        curLon = nLon;
       }
     } catch (_) {}
 
-    // Обратное геокодирование адреса через Nominatim
     try {
       final nomUrl = Uri.parse(
-          'https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lon&zoom=18&accept-language=ru');
-      final resp = await http.get(nomUrl, headers: {'User-Agent': 'CarJournalPro/2.0'}).timeout(const Duration(seconds: 5));
+          'https://nominatim.openstreetmap.org/reverse?format=json&lat=$curLat&lon=$curLon&zoom=18&accept-language=ru');
+      final resp = await http
+          .get(nomUrl, headers: {'User-Agent': 'CarJournalPro/2.0'})
+          .timeout(const Duration(seconds: 5));
       final nom = jsonDecode(resp.body);
       final addr = Map<String, dynamic>.from(nom['address'] ?? {});
-      final city = addr['city'] ?? addr['town'] ?? addr['village'] ?? addr['state'] ?? '';
+      final city =
+          addr['city'] ?? addr['town'] ?? addr['village'] ?? addr['state'] ?? '';
       final road = addr['road'] ?? '';
       final house = addr['house_number'] ?? '';
-      final parts = [city, road, house].where((s) => s.toString().isNotEmpty).toList();
+      final parts =
+          [city, road, house].where((s) => s.toString().isNotEmpty).toList();
       if (parts.isNotEmpty) {
         addrStr = parts.join(', ');
       }
@@ -370,33 +376,33 @@ class _JournalHomePageState extends State<JournalHomePage> {
       _stationBrand = foundBrand;
       _stationCtrl.text = foundBrand;
       _address = distM != null ? '$addrStr ($distM м)' : addrStr;
-      _lat = lat!;
-      _lon = lon!;
+      _lat = curLat;
+      _lon = curLon;
       final newPrice = _getFuelPrice(_stationBrand, _selectedFuel);
       _costCtrl.text = newPrice.toStringAsFixed(2);
       _isLoadingGps = false;
     });
 
     final newPrice = _getFuelPrice(_stationBrand, _selectedFuel);
-    _notify('📍 Найдена АЗС: $_stationBrand | Цена $_selectedFuel: ${newPrice.toStringAsFixed(2)} ₽/л');
+    _notify(
+        '📍 Найдена АЗС: $_stationBrand | Цена $_selectedFuel: ${newPrice.toStringAsFixed(2)} ₽/л');
   }
 
-  // ================= РАСЧЕТ РАСХОДА ТОПЛИВА =================
   List<Map<String, dynamic>> _calculateConsumptionPoints() {
     final records = _carRefuelings;
     if (records.length < 2) return [];
 
     final List<Map<String, dynamic>> points = [];
-    int lastFullOdo = records.first['odometer'] as int;
+    int lastFullOdo = (records.first['odometer'] as num).toInt();
     double accLiters = 0.0;
     double accCost = 0.0;
 
     for (int i = 1; i < records.length; i++) {
       final r = records[i];
-      final odo = r['odometer'] as int;
+      final odo = (r['odometer'] as num).toInt();
       final liters = (r['liters'] as num).toDouble();
       final cost = (r['cost'] as num).toDouble();
-      final isFull = (r['is_full'] as int) == 1;
+      final isFull = (r['is_full'] as num).toInt() == 1;
 
       accLiters += liters;
       accCost += cost;
@@ -439,7 +445,6 @@ class _JournalHomePageState extends State<JournalHomePage> {
         RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]} ');
   }
 
-  // ================= СОХРАНЕНИЕ ЗАПРАВОК И РАСХОДОВ =================
   void _saveQuickRefuel() {
     final text = _quickCtrl.text.replaceAll(',', '.');
     final matches = RegExp(r'\d+(?:\.\d+)?')
@@ -492,7 +497,8 @@ class _JournalHomePageState extends State<JournalHomePage> {
     final consTxt = pts.isNotEmpty
         ? ' | Расход: ${(pts.last['consumption'] as double).toStringAsFixed(2)} л/100км'
         : '';
-    _notify('⚡ Записано ($_stationBrand): $odo км, $liters л, ${totalCost.toStringAsFixed(0)} ₽$consTxt');
+    _notify(
+        '⚡ Записано ($_stationBrand): $odo км, $liters л, ${totalCost.toStringAsFixed(0)} ₽$consTxt');
   }
 
   void _saveFullRefuel() {
@@ -500,20 +506,30 @@ class _JournalHomePageState extends State<JournalHomePage> {
     final liters = double.tryParse(_litersCtrl.text.trim().replaceAll(',', '.'));
     final val = double.tryParse(_costCtrl.text.trim().replaceAll(',', '.'));
 
-    if (odo == null || liters == null || val == null || odo <= 0 || liters <= 0 || val <= 0) {
-      _notify('⚠️ Заполните пробег, литры и стоимость корректными числами!', isError: true);
+    if (odo == null ||
+        liters == null ||
+        val == null ||
+        odo <= 0 ||
+        liters <= 0 ||
+        val <= 0) {
+      _notify('⚠️ Заполните пробег, литры и стоимость корректными числами!',
+          isError: true);
       return;
     }
 
     final prevOdo = _currentOdometer;
     if (prevOdo > 0 && odo <= prevOdo) {
-      _notify('⚠️ Новый пробег ($odo км) должен быть больше предыдущего ($prevOdo км)!', isError: true);
+      _notify(
+          '⚠️ Новый пробег ($odo км) должен быть больше предыдущего ($prevOdo км)!',
+          isError: true);
       return;
     }
 
     final totalCost = val < 250 ? val * liters : val;
     final pricePerL = totalCost / liters;
-    final stBrand = _stationCtrl.text.trim().isNotEmpty ? _stationCtrl.text.trim() : _stationBrand;
+    final stBrand = _stationCtrl.text.trim().isNotEmpty
+        ? _stationCtrl.text.trim()
+        : _stationBrand;
 
     _updateFuelPrice(stBrand, _selectedFuel, pricePerL);
 
@@ -545,15 +561,16 @@ class _JournalHomePageState extends State<JournalHomePage> {
       _notify('⏳ Частичная заправка сохранена!');
     } else if (pts.isNotEmpty) {
       final lastP = pts.last;
-      _notify('✅ Сохранено ($stBrand)! +${lastP['distance']} км | Расход: ${(lastP['consumption'] as double).toStringAsFixed(2)} л/100км');
+      _notify(
+          '✅ Сохранено ($stBrand)! +${lastP['distance']} км | Расход: ${(lastP['consumption'] as double).toStringAsFixed(2)} л/100км');
     } else {
       _notify('✅ Заправка сохранена!');
     }
   }
 
   void _loadDemoData() {
-    _refuelings.removeWhere((r) => r['car_id'] == _activeCarId);
-    _expenses.removeWhere((e) => e['car_id'] == _activeCarId);
+    _refuelings.removeWhere((r) => (r['car_id'] as num).toInt() == _activeCarId);
+    _expenses.removeWhere((e) => (e['car_id'] as num).toInt() == _activeCarId);
 
     final car = _activeCar;
     car['last_service_odo'] = 140000;
@@ -608,7 +625,6 @@ class _JournalHomePageState extends State<JournalHomePage> {
     _notify('🎲 Демо-данные с геометками загружены!');
   }
 
-  // ================= ВИДЖЕТЫ ИНТЕРФЕЙСА =================
   Widget _buildCard({required List<Widget> children}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -682,12 +698,18 @@ class _JournalHomePageState extends State<JournalHomePage> {
     );
   }
 
-  // ---------------- ВКЛАДКА 1: ЗАПРАВКИ ----------------
   Widget _buildRefuelTab() {
     final autoPrice = _getFuelPrice(_stationBrand, _selectedFuel);
     final prevOdo = _currentOdometer;
     final prevHint = prevOdo > 0 ? 'Предыдущий: $prevOdo км' : 'Первая запись';
-    final brands = ['Лукойл', 'Газпромнефть', 'Роснефть', 'Татнефть', 'Нефтьмагистраль', 'Teboil'];
+    final brands = [
+      'Лукойл',
+      'Газпромнефть',
+      'Роснефть',
+      'Татнефть',
+      'Нефтьмагистраль',
+      'Teboil'
+    ];
     final fuels = ['АИ-92', 'АИ-95', 'АИ-100', 'ДТ', 'Газ'];
     final modes = ['Город', 'Трасса', 'Смешанный'];
 
@@ -698,7 +720,10 @@ class _JournalHomePageState extends State<JournalHomePage> {
           children: [
             const Text(
               '📍 Геолокация и автоподстановка цен АЗС',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFFF8FAFC)),
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFF8FAFC)),
             ),
             const SizedBox(height: 8),
             _buildBtn(
@@ -713,7 +738,9 @@ class _JournalHomePageState extends State<JournalHomePage> {
               '📍 Адрес: $_address',
               style: TextStyle(
                 fontSize: 11.5,
-                color: _lat != 0 ? const Color(0xFF10B981) : const Color(0xFF94A3B8),
+                color: _lat != 0
+                    ? const Color(0xFF10B981)
+                    : const Color(0xFF94A3B8),
               ),
             ),
             const SizedBox(height: 8),
@@ -733,10 +760,12 @@ class _JournalHomePageState extends State<JournalHomePage> {
                       setState(() {
                         _stationBrand = b;
                         _stationCtrl.text = b;
-                        _costCtrl.text = _getFuelPrice(b, _selectedFuel).toStringAsFixed(2);
+                        _costCtrl.text =
+                            _getFuelPrice(b, _selectedFuel).toStringAsFixed(2);
                       });
                     },
-                    bgColor: isSel ? const Color(0xFF059669) : const Color(0xFF334155),
+                    bgColor:
+                        isSel ? const Color(0xFF059669) : const Color(0xFF334155),
                   ),
                 );
               }).toList(),
@@ -749,7 +778,10 @@ class _JournalHomePageState extends State<JournalHomePage> {
           children: [
             const Text(
               '⚡ Быстрый ввод (можно без цены — тариф АЗС подставится сам)',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8)),
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF94A3B8)),
             ),
             const SizedBox(height: 8),
             Row(
@@ -761,7 +793,8 @@ class _JournalHomePageState extends State<JournalHomePage> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                _buildBtn('Ок', _saveQuickRefuel, bgColor: const Color(0xFF10B981)),
+                _buildBtn('Ок', _saveQuickRefuel,
+                    bgColor: const Color(0xFF10B981)),
               ],
             ),
           ],
@@ -769,14 +802,18 @@ class _JournalHomePageState extends State<JournalHomePage> {
         _buildCard(
           children: [
             const Text('Новая заправка',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFF8FAFC))),
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFF8FAFC))),
             const SizedBox(height: 10),
             _buildTextField(_odoCtrl, 'Пробег, км ($prevHint)', isNumber: true),
             const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
-                  child: _buildTextField(_litersCtrl, 'Литры (42.5)', isNumber: true),
+                  child:
+                      _buildTextField(_litersCtrl, 'Литры (42.5)', isNumber: true),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -790,7 +827,8 @@ class _JournalHomePageState extends State<JournalHomePage> {
               ],
             ),
             const SizedBox(height: 10),
-            const Text('Марка топлива:', style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8))),
+            const Text('Марка топлива:',
+                style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8))),
             const SizedBox(height: 6),
             Row(
               children: fuels.map((f) {
@@ -803,10 +841,13 @@ class _JournalHomePageState extends State<JournalHomePage> {
                       () {
                         setState(() {
                           _selectedFuel = f;
-                          _costCtrl.text = _getFuelPrice(_stationBrand, f).toStringAsFixed(2);
+                          _costCtrl.text =
+                              _getFuelPrice(_stationBrand, f).toStringAsFixed(2);
                         });
                       },
-                      bgColor: isSel ? const Color(0xFF2563EB) : const Color(0xFF334155),
+                      bgColor: isSel
+                          ? const Color(0xFF2563EB)
+                          : const Color(0xFF334155),
                     ),
                   ),
                 );
@@ -814,12 +855,14 @@ class _JournalHomePageState extends State<JournalHomePage> {
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Заправка до полного бака', style: TextStyle(fontSize: 13.5)),
+              title: const Text('Заправка до полного бака',
+                  style: TextStyle(fontSize: 13.5)),
               value: _isFullTank,
               activeColor: const Color(0xFF10B981),
               onChanged: (v) => setState(() => _isFullTank = v),
             ),
-            const Text('Режим езды:', style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8))),
+            const Text('Режим езды:',
+                style: TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8))),
             const SizedBox(height: 6),
             Row(
               children: modes.map((m) {
@@ -830,7 +873,9 @@ class _JournalHomePageState extends State<JournalHomePage> {
                     child: _buildBtn(
                       m,
                       () => setState(() => _selectedMode = m),
-                      bgColor: isSel ? const Color(0xFF2563EB) : const Color(0xFF334155),
+                      bgColor: isSel
+                          ? const Color(0xFF2563EB)
+                          : const Color(0xFF334155),
                     ),
                   ),
                 );
@@ -843,17 +888,23 @@ class _JournalHomePageState extends State<JournalHomePage> {
         const Padding(
           padding: EdgeInsets.symmetric(vertical: 6),
           child: Text('Последние заправки:',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8))),
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF94A3B8))),
         ),
         ..._carRefuelings.reversed.take(12).map((r) {
-          final odo = r['odometer'] as int;
+          final odo = (r['odometer'] as num).toInt();
           final lit = (r['liters'] as num).toDouble();
           final cost = (r['cost'] as num).toDouble();
           final priceL = lit > 0 ? cost / lit : 0.0;
-          final badge = (r['is_full'] as int) == 1 ? 'Полный' : 'Частично';
+          final badge = (r['is_full'] as num).toInt() == 1 ? 'Полный' : 'Частично';
           final st = (r['station_name'] ?? 'АЗС').toString();
           final addr = (r['address'] ?? '').toString();
-          final geoTxt = (addr.isNotEmpty && addr != 'Геолокация не запрошена') ? ' • 📍 $addr' : '';
+          final geoTxt =
+              (addr.isNotEmpty && addr != 'Геолокация не запрошена')
+                  ? ' • 📍 $addr'
+                  : '';
 
           return _buildCard(
             children: [
@@ -866,21 +917,26 @@ class _JournalHomePageState extends State<JournalHomePage> {
                       children: [
                         Text(
                           '${_fmtNum(odo)} км • $lit л (${r['fuel_type']}) • ${cost.toStringAsFixed(0)} ₽ (${priceL.toStringAsFixed(2)} ₽/л)',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 13),
                         ),
                         const SizedBox(height: 3),
                         Text('⛽ $st$geoTxt',
-                            style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 11.5)),
+                            style: const TextStyle(
+                                color: Color(0xFF38BDF8), fontSize: 11.5)),
                         const SizedBox(height: 2),
                         Text('${r['date']} | ${r['mode']} | $badge',
-                            style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
+                            style: const TextStyle(
+                                color: Color(0xFF94A3B8), fontSize: 11)),
                       ],
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Color(0xFFEF4444)),
+                    icon: const Icon(Icons.delete_outline,
+                        color: Color(0xFFEF4444)),
                     onPressed: () {
-                      setState(() => _refuelings.removeWhere((x) => x['id'] == r['id']));
+                      setState(
+                          () => _refuelings.removeWhere((x) => x['id'] == r['id']));
                       _saveData();
                       _notify('Запись удалена');
                     },
@@ -894,7 +950,6 @@ class _JournalHomePageState extends State<JournalHomePage> {
     );
   }
 
-  // ---------------- ВКЛАДКА 2: РАСХОДЫ ----------------
   Widget _buildExpensesTab() {
     final categories = [
       '🔧 ТО и Запчасти',
@@ -920,19 +975,22 @@ class _JournalHomePageState extends State<JournalHomePage> {
                 return _buildBtn(
                   c,
                   () => setState(() => _expCategory = c),
-                  bgColor: isSel ? const Color(0xFF2563EB) : const Color(0xFF334155),
+                  bgColor:
+                      isSel ? const Color(0xFF2563EB) : const Color(0xFF334155),
                 );
               }).toList(),
             ),
             const SizedBox(height: 10),
             _buildTextField(_expCostCtrl, 'Сумма расхода (₽)', isNumber: true),
             const SizedBox(height: 10),
-            _buildTextField(_expCommCtrl, 'Комментарий (напр. Замена колодок, ОСАГО)'),
+            _buildTextField(
+                _expCommCtrl, 'Комментарий (напр. Замена колодок, ОСАГО)'),
             const SizedBox(height: 12),
             _buildBtn(
               'СОХРАНИТЬ РАСХОД',
               () {
-                final cost = double.tryParse(_expCostCtrl.text.trim().replaceAll(',', '.'));
+                final cost = double.tryParse(
+                    _expCostCtrl.text.trim().replaceAll(',', '.'));
                 if (cost == null || cost <= 0) {
                   _notify('⚠️ Введите корректную сумму расхода!', isError: true);
                   return;
@@ -952,7 +1010,8 @@ class _JournalHomePageState extends State<JournalHomePage> {
                 _expCommCtrl.clear();
                 _saveData();
                 setState(() {});
-                _notify('✅ Расход ${cost.toStringAsFixed(0)} ₽ ($_expCategory) добавлен!');
+                _notify(
+                    '✅ Расход ${cost.toStringAsFixed(0)} ₽ ($_expCategory) добавлен!');
               },
               bgColor: const Color(0xFF10B981),
             ),
@@ -961,7 +1020,10 @@ class _JournalHomePageState extends State<JournalHomePage> {
         const Padding(
           padding: EdgeInsets.symmetric(vertical: 6),
           child: Text('История расходов:',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8))),
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF94A3B8))),
         ),
         ..._carExpenses.map((ex) {
           final cost = (ex['cost'] as num).toDouble();
@@ -975,17 +1037,21 @@ class _JournalHomePageState extends State<JournalHomePage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('${ex['category']}: ${cost.toStringAsFixed(0)} ₽',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 13.5)),
                         const SizedBox(height: 3),
                         Text('${ex['date']} • ${ex['comment']}',
-                            style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11.5)),
+                            style: const TextStyle(
+                                color: Color(0xFF94A3B8), fontSize: 11.5)),
                       ],
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Color(0xFFEF4444)),
+                    icon: const Icon(Icons.delete_outline,
+                        color: Color(0xFFEF4444)),
                     onPressed: () {
-                      setState(() => _expenses.removeWhere((x) => x['id'] == ex['id']));
+                      setState(
+                          () => _expenses.removeWhere((x) => x['id'] == ex['id']));
                       _saveData();
                       _notify('Расход удален');
                     },
@@ -999,15 +1065,17 @@ class _JournalHomePageState extends State<JournalHomePage> {
     );
   }
 
-  // ---------------- ВКЛАДКА 3: АНАЛИТИКА ----------------
   Widget _buildStatsTab() {
     final refs = _carRefuelings;
     final exps = _carExpenses;
     final points = _calculateConsumptionPoints();
 
-    final totalLiters = refs.fold<double>(0.0, (s, r) => s + (r['liters'] as num).toDouble());
-    final totalFuelCost = refs.fold<double>(0.0, (s, r) => s + (r['cost'] as num).toDouble());
-    final totalExtraCost = exps.fold<double>(0.0, (s, e) => s + (e['cost'] as num).toDouble());
+    final totalLiters =
+        refs.fold<double>(0.0, (s, r) => s + (r['liters'] as num).toDouble());
+    final totalFuelCost =
+        refs.fold<double>(0.0, (s, r) => s + (r['cost'] as num).toDouble());
+    final totalExtraCost =
+        exps.fold<double>(0.0, (s, e) => s + (e['cost'] as num).toDouble());
     final grandTotal = totalFuelCost + totalExtraCost;
 
     int totalDist = 0;
@@ -1016,13 +1084,19 @@ class _JournalHomePageState extends State<JournalHomePage> {
     double tcoKmCost = 0.0;
 
     if (refs.length >= 2 && points.isNotEmpty) {
-      totalDist = (refs.last['odometer'] as int) - (refs.first['odometer'] as int);
-      final sumLit = points.fold<double>(0.0, (s, p) => s + (p['liters'] as double));
-      final sumDist = points.fold<int>(0, (s, p) => s + (p['distance'] as int));
+      totalDist = (refs.last['odometer'] as num).toInt() -
+          (refs.first['odometer'] as num).toInt();
+      final sumLit =
+          points.fold<double>(0.0, (s, p) => s + (p['liters'] as double));
+      final sumDist =
+          points.fold<int>(0, (s, p) => s + (p['distance'] as int));
       avgCons = sumDist > 0 ? (sumLit / sumDist) * 100.0 : 0.0;
       final firstCost = (refs.first['cost'] as num).toDouble();
-      fuelKmCost = totalDist > 0 ? (totalFuelCost - firstCost) / totalDist : 0.0;
-      tcoKmCost = totalDist > 0 ? ((totalFuelCost - firstCost) + totalExtraCost) / totalDist : 0.0;
+      fuelKmCost =
+          totalDist > 0 ? (totalFuelCost - firstCost) / totalDist : 0.0;
+      tcoKmCost = totalDist > 0
+          ? ((totalFuelCost - firstCost) + totalExtraCost) / totalDist
+          : 0.0;
     }
 
     Widget statBox(String title, String val, Color col) {
@@ -1036,9 +1110,13 @@ class _JournalHomePageState extends State<JournalHomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+              Text(title,
+                  style:
+                      const TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
               const SizedBox(height: 4),
-              Text(val, style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: col)),
+              Text(val,
+                  style: TextStyle(
+                      fontSize: 17, fontWeight: FontWeight.bold, color: col)),
             ],
           ),
         ),
@@ -1050,30 +1128,39 @@ class _JournalHomePageState extends State<JournalHomePage> {
       children: [
         Row(
           children: [
-            statBox('Средний расход', '${avgCons.toStringAsFixed(2)} л/100км', const Color(0xFFF43F5E)),
+            statBox('Средний расход', '${avgCons.toStringAsFixed(2)} л/100км',
+                const Color(0xFFF43F5E)),
             const SizedBox(width: 8),
-            statBox('Пробег по базе', '${_fmtNum(totalDist)} км', const Color(0xFF38BDF8)),
+            statBox('Пробег по базе', '${_fmtNum(totalDist)} км',
+                const Color(0xFF38BDF8)),
           ],
         ),
         const SizedBox(height: 8),
         Row(
           children: [
-            statBox('1 км (бензин)', '${fuelKmCost.toStringAsFixed(2)} ₽', const Color(0xFF10B981)),
+            statBox('1 км (бензин)', '${fuelKmCost.toStringAsFixed(2)} ₽',
+                const Color(0xFF10B981)),
             const SizedBox(width: 8),
-            statBox('1 км (полная ТСО)', '${tcoKmCost.toStringAsFixed(2)} ₽', const Color(0xFFF59E0B)),
+            statBox('1 км (полная ТСО)', '${tcoKmCost.toStringAsFixed(2)} ₽',
+                const Color(0xFFF59E0B)),
           ],
         ),
         const SizedBox(height: 12),
         _buildCard(
           children: [
-            const Text('Сводка затрат', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            const Text('Сводка затрат',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
             const SizedBox(height: 6),
-            Text('• Затраты на топливо: ${_fmtNum(totalFuelCost)} ₽ (${totalLiters.toStringAsFixed(1)} л)'),
+            Text(
+                '• Затраты на топливо: ${_fmtNum(totalFuelCost)} ₽ (${totalLiters.toStringAsFixed(1)} л)'),
             const SizedBox(height: 4),
             Text('• Затраты на ТО, мойку и прочее: ${_fmtNum(totalExtraCost)} ₽'),
             const SizedBox(height: 6),
             Text('• ИТОГО ПОТРАЧЕНО: ${_fmtNum(grandTotal)} ₽',
-                style: const TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold, fontSize: 14)),
+                style: const TextStyle(
+                    color: Color(0xFF10B981),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14)),
           ],
         ),
         _buildCard(
@@ -1082,7 +1169,8 @@ class _JournalHomePageState extends State<JournalHomePage> {
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             if (points.isEmpty)
-              const Text('Добавьте минимум 2 заправки до полного бака (или загрузите демо-данные).',
+              const Text(
+                  'Добавьте минимум 2 заправки до полного бака (или загрузите демо-данные).',
                   style: TextStyle(color: Color(0xFF64748B), fontSize: 12))
             else
               ...points.reversed.take(8).map((p) {
@@ -1096,11 +1184,16 @@ class _JournalHomePageState extends State<JournalHomePage> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('${_fmtNum(p['odometer'] as int)} км (${p['mode']} • ${p['station']})',
-                              style: const TextStyle(fontSize: 11.5, color: Color(0xFFCBD5E1))),
-                          Text('${cons.toStringAsFixed(2)} л/100км (${priceL.toStringAsFixed(1)} ₽/л)',
+                          Text(
+                              '${_fmtNum(p['odometer'] as int)} км (${p['mode']} • ${p['station']})',
                               style: const TextStyle(
-                                  fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF38BDF8))),
+                                  fontSize: 11.5, color: Color(0xFFCBD5E1))),
+                          Text(
+                              '${cons.toStringAsFixed(2)} л/100км (${priceL.toStringAsFixed(1)} ₽/л)',
+                              style: const TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF38BDF8))),
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -1120,13 +1213,15 @@ class _JournalHomePageState extends State<JournalHomePage> {
           '📋 Скопировать CSV-отчет (для Excel) в буфер обмена',
           () {
             final sb = StringBuffer();
-            sb.writeln('ТИП;ДАТА;ПРОБЕГ;ЛИТРЫ;СУММА;ТОПЛИВО/КАТЕГОРИЯ;РЕЖИМ/КОММЕНТАРИЙ;АЗС;АДРЕС');
+            sb.writeln(
+                'ТИП;ДАТА;ПРОБЕГ;ЛИТРЫ;СУММА;ТОПЛИВО/КАТЕГОРИЯ;РЕЖИМ/КОММЕНТАРИЙ;АЗС;АДРЕС');
             for (final r in refs) {
               sb.writeln(
                   'Заправка;${r['date']};${r['odometer']};${r['liters']};${r['cost']};${r['fuel_type']};${r['mode']};${r['station_name']};${r['address']}');
             }
             for (final ex in exps) {
-              sb.writeln('Расход;${ex['date']};;;${ex['cost']};${ex['category']};${ex['comment']};;');
+              sb.writeln(
+                  'Расход;${ex['date']};;;${ex['cost']};${ex['category']};${ex['comment']};;');
             }
             Clipboard.setData(ClipboardData(text: sb.toString()));
             _notify('📥 CSV-отчет скопирован в буфер обмена!');
@@ -1137,15 +1232,16 @@ class _JournalHomePageState extends State<JournalHomePage> {
     );
   }
 
-  // ---------------- ВКЛАДКА 4: ГАРАЖ И ТО ----------------
   Widget _buildGarageTab() {
     final car = _activeCar;
-    final interval = car['service_interval'] as int;
-    final lastSrvOdo = car['last_service_odo'] as int;
+    final interval = (car['service_interval'] as num).toInt();
+    final lastSrvOdo = (car['last_service_odo'] as num).toInt();
     final currOdo = _currentOdometer;
 
     final passed = lastSrvOdo > 0 ? max(currOdo - lastSrvOdo, 0) : 0;
-    final progress = (interval > 0 && lastSrvOdo > 0) ? (passed / interval).clamp(0.0, 1.0) : 0.0;
+    final progress = (interval > 0 && lastSrvOdo > 0)
+        ? (passed / interval).clamp(0.0, 1.0)
+        : 0.0;
 
     return ListView(
       padding: const EdgeInsets.all(12),
@@ -1153,23 +1249,29 @@ class _JournalHomePageState extends State<JournalHomePage> {
         _buildCard(
           children: [
             Text('Контроль замены масла (${car['name']})',
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                style:
+                    const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
             const SizedBox(height: 6),
-            Text('Пройдено после ТО: ${_fmtNum(passed)} км из ${_fmtNum(interval)} км',
-                style: const TextStyle(fontSize: 13, color: Color(0xFFCBD5E1))),
+            Text(
+                'Пройдено после ТО: ${_fmtNum(passed)} км из ${_fmtNum(interval)} км',
+                style:
+                    const TextStyle(fontSize: 13, color: Color(0xFFCBD5E1))),
             const SizedBox(height: 8),
             LinearProgressIndicator(
               value: progress,
               minHeight: 10,
               backgroundColor: const Color(0xFF0F172A),
-              color: progress >= 0.9 ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+              color: progress >= 0.9
+                  ? const Color(0xFFEF4444)
+                  : const Color(0xFF10B981),
             ),
             const SizedBox(height: 10),
             _buildBtn(
               'Я поменял масло сейчас (${_fmtNum(currOdo)} км)',
               () {
                 if (currOdo == 0) {
-                  _notify('⚠️ Сначала добавьте хотя бы одну заправку!', isError: true);
+                  _notify('⚠️ Сначала добавьте хотя бы одну заправку!',
+                      isError: true);
                   return;
                 }
                 setState(() {
@@ -1182,7 +1284,8 @@ class _JournalHomePageState extends State<JournalHomePage> {
               bgColor: const Color(0xFF10B981),
             ),
             const SizedBox(height: 10),
-            _buildTextField(_srvOdoCtrl, 'Пробег последней замены (км)', isNumber: true),
+            _buildTextField(_srvOdoCtrl, 'Пробег последней замены (км)',
+                isNumber: true),
             const SizedBox(height: 8),
             _buildTextField(_srvIntCtrl, 'Интервал замены (км)', isNumber: true),
             const SizedBox(height: 10),
@@ -1190,7 +1293,8 @@ class _JournalHomePageState extends State<JournalHomePage> {
               final sOdo = int.tryParse(_srvOdoCtrl.text.trim());
               final sInt = int.tryParse(_srvIntCtrl.text.trim());
               if (sOdo == null || sInt == null || sInt < 500) {
-                _notify('⚠️ Введите корректный пробег и интервал!', isError: true);
+                _notify('⚠️ Введите корректный пробег и интервал!',
+                    isError: true);
                 return;
               }
               setState(() {
@@ -1208,20 +1312,22 @@ class _JournalHomePageState extends State<JournalHomePage> {
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             ..._cars.map((c) {
-              final isAct = c['id'] == _activeCarId;
+              final cId = (c['id'] as num).toInt();
+              final isAct = cId == _activeCarId;
               return Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: _buildBtn(
                   '${isAct ? "✓ " : ""}${c['name']} (ТО: ${c['service_interval']} км)',
                   () {
                     setState(() {
-                      _activeCarId = c['id'] as int;
+                      _activeCarId = cId;
                       _syncControllersWithState();
                     });
                     _saveData();
                     _notify('Автомобиль переключен');
                   },
-                  bgColor: isAct ? const Color(0xFF2563EB) : const Color(0xFF334155),
+                  bgColor:
+                      isAct ? const Color(0xFF2563EB) : const Color(0xFF334155),
                 ),
               );
             }),
@@ -1266,7 +1372,8 @@ class _JournalHomePageState extends State<JournalHomePage> {
             const Text('☕ Поддержать проект и обновления',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
             const SizedBox(height: 6),
-            const Text('Если приложение оказалось полезным, вы можете поддержать автора чаевыми:',
+            const Text(
+                'Если приложение оказалось полезным, вы можете поддержать автора чаевыми:',
                 style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
             const SizedBox(height: 8),
             _buildBtn(
@@ -1291,7 +1398,10 @@ class _JournalHomePageState extends State<JournalHomePage> {
         _buildCard(
           children: [
             const Text('Тестирование и управление базой',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF94A3B8))),
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF94A3B8))),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -1308,8 +1418,10 @@ class _JournalHomePageState extends State<JournalHomePage> {
                     '🗑 Очистить базу',
                     () {
                       setState(() {
-                        _refuelings.removeWhere((r) => r['car_id'] == _activeCarId);
-                        _expenses.removeWhere((e) => e['car_id'] == _activeCarId);
+                        _refuelings.removeWhere(
+                            (r) => (r['car_id'] as num).toInt() == _activeCarId);
+                        _expenses.removeWhere(
+                            (e) => (e['car_id'] as num).toInt() == _activeCarId);
                       });
                       _saveData();
                       _notify('История очищена');
@@ -1330,8 +1442,8 @@ class _JournalHomePageState extends State<JournalHomePage> {
   Widget build(BuildContext context) {
     final car = _activeCar;
     final currOdo = _currentOdometer;
-    final lastSrv = car['last_service_odo'] as int;
-    final interval = car['service_interval'] as int;
+    final lastSrv = (car['last_service_odo'] as num).toInt();
+    final interval = (car['service_interval'] as num).toInt();
 
     String badgeText = 'Интервал ТО не задан (см. Гараж/ТО)';
     Color badgeColor = const Color(0xFF94A3B8);
@@ -1373,10 +1485,12 @@ class _JournalHomePageState extends State<JournalHomePage> {
                       children: [
                         Text(
                           '${car['name']} (${_fmtNum(currOdo)} км)',
-                          style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                              fontSize: 16.5, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 2),
-                        Text(badgeText, style: TextStyle(fontSize: 12, color: badgeColor)),
+                        Text(badgeText,
+                            style: TextStyle(fontSize: 12, color: badgeColor)),
                       ],
                     ),
                   ),
@@ -1397,10 +1511,14 @@ class _JournalHomePageState extends State<JournalHomePage> {
         unselectedItemColor: const Color(0xFF94A3B8),
         type: BottomNavigationBarType.fixed,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.local_gas_station), label: 'Заправки'),
-          BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'Расходы'),
-          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Аналитика'),
-          BottomNavigationBarItem(icon: Icon(Icons.build_circle_outlined), label: 'Гараж/ТО'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.local_gas_station), label: 'Заправки'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.receipt_long), label: 'Расходы'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.bar_chart), label: 'Аналитика'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.build_circle_outlined), label: 'Гараж/ТО'),
         ],
       ),
     );
