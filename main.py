@@ -456,7 +456,7 @@ def make_btn(text: str, on_click, bg_color="#2563EB", text_color="#FFFFFF", expa
             text_align=ft.TextAlign.CENTER,
         ),
         bgcolor=bg_color,
-        padding=ft.padding.only(left=12, right=12, top=10, bottom=10),
+        padding=10,
         border_radius=10,
         alignment=CENTER_ALIGN,
         on_click=on_click,
@@ -504,7 +504,7 @@ def main(page: ft.Page):
     banner_box = ft.Container(
         content=banner_text,
         bgcolor="#10B981",
-        padding=ft.padding.only(left=14, right=14, top=8, bottom=8),
+        padding=10,
         border_radius=8,
         margin=ft.margin.only(left=12, right=12, top=6),
         visible=False,
@@ -521,7 +521,7 @@ def main(page: ft.Page):
 
     header = ft.Container(
         bgcolor="#1E293B",
-        padding=ft.padding.only(left=16, right=16, top=14, bottom=14),
+        padding=14,
         content=ft.Row(
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             controls=[
@@ -538,7 +538,7 @@ def main(page: ft.Page):
     )
     body_wrapper = ft.Container(
         expand=True,
-        padding=ft.padding.only(left=12, right=12, top=8, bottom=8),
+        padding=8,
         content=body_scroll,
     )
 
@@ -1247,8 +1247,8 @@ def main(page: ft.Page):
                         ft.Text("Если приложение оказалось полезным, вы можете поддержать автора чаевыми:", size=12, color="#94A3B8"),
                         make_btn(
                             "☕ Задонатить разработчику",
-                            lambda e: page.launch_url("https://boosty.to/ваш_аккаунт"), # Замените ссылку на свою
-                            bg_color="#8B5CF6", # Фиолетовый цвет доната
+                            lambda e: page.launch_url("https://boosty.to/ваш_аккаунт"),
+                            bg_color="#8B5CF6",
                         ),
                     ],
                 ),
@@ -1287,7 +1287,7 @@ def main(page: ft.Page):
     nav_row = ft.Row(spacing=6, alignment=ft.MainAxisAlignment.SPACE_AROUND)
     nav_bar = ft.Container(
         bgcolor="#1E293B",
-        padding=ft.padding.only(left=8, right=8, top=8, bottom=8),
+        padding=8,
         content=nav_row,
     )
 
