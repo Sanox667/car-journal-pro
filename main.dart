@@ -316,7 +316,56 @@ class _JournalHomePageState extends State<JournalHomePage> {
       _isLoadingGps = false;
     });
 
-    _notify('📍 Найдено АЗС с ценами: ${_mapStations.length}. Смотрите вкладку «Карта АЗС»!');
+    _notify('📍 Найдено АЗС: ${_mapStations.length}. Смотрите вкладку «Карта АЗС»!');
+  }
+
+  // Меню выбора навигатора для построения маршрута
+  void _showRouteMenu(String brand, double destLat, double destLon) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E293B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Маршрут до АЗС: $brand',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              const SizedBox(height: 12),
+              _buildBtn('🚗 Яндекс Навигатор', () async {
+                Navigator.pop(context);
+                final uri = Uri.parse('yandexnavi://build_route_on_map?lat_to=$destLat&lon_to=$destLon');
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri);
+                } else {
+                  final webUri = Uri.parse('https://yandex.ru/maps/?rtext=~$destLat,$destLon&rtype=uri');
+                  await launchUrl(webUri, mode: LaunchMode.externalApplication);
+                }
+              }, bgColor: const Color(0xFFCE2E2E)),
+              const SizedBox(height: 8),
+              _buildBtn('🗺 Google Карты', () async {
+                Navigator.pop(context);
+                final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$destLat,$destLon');
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }, bgColor: const Color(0xFF2563EB)),
+              const SizedBox(height: 8),
+              _buildBtn('📍 Яндекс Карты (Веб)', () async {
+                Navigator.pop(context);
+                final uri = Uri.parse('https://yandex.ru/maps/?rtext=~$destLat,$destLon&rtype=uri');
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }, bgColor: const Color(0xFFD97706)),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   String _nowStr() {
@@ -588,7 +637,7 @@ class _JournalHomePageState extends State<JournalHomePage> {
     );
   }
 
-  // ---------------- ВКЛАДКА 3: КАРТА АЗС С ЦЕНАМИ ----------------
+  // ---------------- ВКЛАДКА 3: КАРТА АЗС С МЕНЮ МАРШРУТА ----------------
   Widget _buildMapTab() {
     return FlutterMap(
       options: MapOptions(
@@ -609,28 +658,32 @@ class _JournalHomePageState extends State<JournalHomePage> {
               height: 50,
               child: const Icon(Icons.my_location, color: Colors.blueAccent, size: 38),
             ),
-            // Маркеры АЗС с ценами поверх значков
+            // Маркеры АЗС с ценами и открытием меню маршрута по тапу
             ..._mapStations.map((st) {
               final brand = st['brand'] ?? 'АЗС';
               final price = (st['price'] as num).toDouble();
+              final stationLat = (st['lat'] as num).toDouble();
+              final stationLon = (st['lon'] as num).toDouble();
+
               return Marker(
-                point: LatLng(st['lat'], st['lon']),
-                width: 90,
-                height: 60,
+                point: LatLng(stationLat, stationLon),
+                width: 95,
+                height: 65,
                 child: GestureDetector(
                   onTap: () {
+                    // При нажатии показываем выбор навигатора и одновременно выбираем АЗС в форму
                     setState(() {
                       _stationBrand = brand;
                       _stationCtrl.text = brand;
                       _costCtrl.text = price.toStringAsFixed(2);
                     });
-                    _notify('Выбрана АЗС: $brand ($price ₽/л)');
+                    _showRouteMenu(brand, stationLat, stationLon);
                   },
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                         decoration: BoxDecoration(
                           color: const Color(0xFF1E293B),
                           border: Border.all(color: const Color(0xFF38BDF8), width: 1),
@@ -641,7 +694,7 @@ class _JournalHomePageState extends State<JournalHomePage> {
                           style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 10, fontWeight: FontWeight.bold),
                         ),
                       ),
-                      const Icon(Icons.local_gas_station, color: Colors.redAccent, size: 26),
+                      const Icon(Icons.local_gas_station, color: Colors.redAccent, size: 28),
                     ],
                   ),
                 ),
