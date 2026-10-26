@@ -29,17 +29,7 @@ jobs:
 
           flutter pub add http shared_preferences geolocator url_launcher
 
-          python3 -c '
-          p = "android/app/src/main/AndroidManifest.xml"
-          s = open(p).read()
-          perms = """<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.INTERNET"/>
-              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
-              <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>"""
-          if "ACCESS_FINE_LOCATION" not in s:
-              s = s.replace("<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\">", perms, 1)
-              open(p, "w").write(s)
-          '
+          sed -i 's/<manifest xmlns:android="http:\/\/schemas.android.com\/apk\/res\/android">/<manifest xmlns:android="http:\/\/schemas.android.com\/apk\/res\/android">\n    <uses-permission android:name="android.permission.INTERNET"\/>\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"\/>\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"\/>/' android/app/src/main/AndroidManifest.xml
 
           flutter build apk --release
 
