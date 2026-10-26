@@ -1,26 +1,50 @@
-name: Build Flet APK
+name: Build Flutter APK
 on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
+
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-      - name: Install Flet & Build APK
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Generate Android Project & Build APK
         run: |
-          pip install flet
-          echo "y" | flet build apk
+          if [ -f "main.dart" ]; then
+            cp main.dart /tmp/main.dart.bak
+          elif [ -f "lib/main.dart" ]; then
+            cp lib/main.dart /tmp/main.dart.bak
+          fi
+
+          flutter create --org com.carjournal --project-name car_journal_pro --platforms android .
+          mkdir -p lib
+          cp /tmp/main.dart.bak lib/main.dart
+
+          flutter pub add http shared_preferences geolocator url_launcher
+
+          python3 -c '
+          p = "android/app/src/main/AndroidManifest.xml"
+          s = open(p).read()
+          perms = """<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+              <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>"""
+          if "ACCESS_FINE_LOCATION" not in s:
+              s = s.replace("<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\">", perms, 1)
+              open(p, "w").write(s)
+          '
+
+          flutter build apk --release
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: CarJournal-APK
-          path: build/apk/*.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
