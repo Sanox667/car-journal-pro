@@ -27,11 +27,16 @@ jobs:
           mkdir -p lib
           cp /tmp/main.dart.bak lib/main.dart
 
-          flutter pub add http shared_preferences geolocator url_launcher
+          flutter pub add http shared_preferences geolocator url_launcher flutter_map latlong2
 
+          # Прописываем разрешения для GPS в AndroidManifest.xml
           sed -i 's/<manifest xmlns:android="http:\/\/schemas.android.com\/apk\/res\/android">/<manifest xmlns:android="http:\/\/schemas.android.com\/apk\/res\/android">\n    <uses-permission android:name="android.permission.INTERNET"\/>\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"\/>\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"\/>/' android/app/src/main/AndroidManifest.xml
 
-          flutter build apk --release
+          # Устанавливаем minSdkVersion 21 для поддержки картами и геолокацией
+          sed -i 's/minSdkVersion.*/minSdkVersion 21/g' android/app/build.gradle
+
+          # Запуск сборки с подробными логами (--verbose)
+          flutter build apk --release --verbose
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
