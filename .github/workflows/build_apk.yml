@@ -32,10 +32,11 @@ jobs:
           # Прописываем разрешения для GPS в AndroidManifest.xml
           sed -i 's/<manifest xmlns:android="http:\/\/schemas.android.com\/apk\/res\/android">/<manifest xmlns:android="http:\/\/schemas.android.com\/apk\/res\/android">\n    <uses-permission android:name="android.permission.INTERNET"\/>\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"\/>\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"\/>/' android/app/src/main/AndroidManifest.xml
 
-          # Устанавливаем minSdkVersion 21 для поддержки картами и геолокацией
-          sed -i 's/minSdkVersion.*/minSdkVersion 21/g' android/app/build.gradle
+          # Корректно устанавливаем minSdk 21 для нового формата build.gradle.kts
+          sed -i 's/minSdk = .*/minSdk = 21/g' android/app/build.gradle.kts
+          sed -i 's/minSdkVersion.*/minSdkVersion 21/g' android/app/build.gradle.kts || true
 
-          # Запуск сборки с подробными логами (--verbose)
+          # Запуск сборки APK
           flutter build apk --release --verbose
 
       - name: Upload APK
